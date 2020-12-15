@@ -22,3 +22,4 @@ python pygame_tutorial.py
 - Create a unit test to demonstrate the failure rate of the particle filter
 - Adjust the sim and filter to account for camera orientation changes
 - Limit the number of SURF features detected, as it slows down with highly detailed tiles.
+- Reorg the code for better understanding.
