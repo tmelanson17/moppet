@@ -15,11 +15,18 @@ conda env create -f environment.yml
 python pygame_tutorial.py
 ```
 
-# TODO (Near term)
+## TODO (Near term)
+
+### Expand implementation
+- Adjust the sim and filter to account for camera orientation changes
+- Have the ability to use the filter with a Pi robot.
+- Create a controller for the robot so it can drive itself
+### Expand testing and visualization
+- Create a unit test to demonstrate the failure rate of the particle filter
+- Create a marker for where the particle filter predicted location is and variance
+### Performance enhancements
+- Limit the number of SURF features detected, as it slows down with highly detailed tiles.
+### Reorg the code for better understanding.
 - Rename `pygame_tutorial.py`
 - Remove the `Corridor` class, it only serves to define the active spaces in the sim
-- Create a marker for where the particle filter predicted location is and variance
-- Create a unit test to demonstrate the failure rate of the particle filter
-- Adjust the sim and filter to account for camera orientation changes
-- Limit the number of SURF features detected, as it slows down with highly detailed tiles.
-- Reorg the code for better understanding.
+
