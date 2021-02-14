@@ -61,6 +61,8 @@ class TileMap():
         self._tiles[i][j].set_img(img)
 
     def make_tile(self, x, y):
+        x = int(x)
+        y = int(y)
         return  Tile((x,y), 
                     self.img[
                     (x - self.tile_width//2):(x + self.tile_width//2),

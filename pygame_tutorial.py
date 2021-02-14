@@ -21,6 +21,22 @@ blue = (0, 0, 255)
 TILE_WIDTH = 60
 TILE_HEIGHT = 60
 
+class MoveVector():
+    def __init__(self, dX, dTheta):
+        self.dX = dX
+        self.dTheta = dTheta
+
+    def move(self, particle, noise=None):
+        delta_x = self.dX * -np.sin(particle[2])
+        delta_y = self.dX * -np.cos(particle[2])
+        if noise is not None:
+            delta_x = np.round(noise.add_noise(delta_x))
+            delta_y = np.round(noise.add_noise(delta_y))
+        new_loc_x = particle[0] + delta_x
+        new_loc_y = particle[1] + delta_y
+        heading = particle[2] + self.dTheta
+        return (new_loc_x, new_loc_y, heading)
+
 class CorridorTile():
     def __init__(self, loc, surface_index):
         self.loc = loc
@@ -42,6 +58,9 @@ CORRIDOR_MAP = [
     [0, 0, 0, 0, 0, 0, 0, 0]]
 
 colors = [green, black, white]
+
+# TODO: Update location
+
 '''
    TODO: Deprecate this class
 '''
@@ -102,7 +121,7 @@ class Corridor:
 
     def get_vehicle_location(self):
         loc = convert_index_to_location(self.vehicle_tile)
-        x, y = loc
+        x, y, heading = loc
         x += TILE_WIDTH * 0.5
         y += TILE_HEIGHT * 0.5
         return x, y
@@ -110,7 +129,7 @@ class Corridor:
 
     def viable_locations(self, loc):
         WALL=0
-        loc_x, loc_y = loc
+        loc_x, loc_y, heading = loc
         index_i = int(round(loc_x / TILE_WIDTH))
         index_j = int(round(loc_y / TILE_HEIGHT))
         in_bounds = index_i < len(self._tiles) and index_j < len(self._tiles[0]) and index_i > 0 and index_j > 0
@@ -138,19 +157,19 @@ class Vehicle:
         car_img = car_img.convert()
         self.car_img = pygame.transform.scale(car_img, (TILE_WIDTH, TILE_HEIGHT))
 
-    def advance_vehicle(self, viable_loc_function, step=1):
-        x, y = self.loc
-        WALL = 0
-        angle_rad = self.car_direction.value * np.pi / 180
-        new_loc = (int(x + step * -np.sin(angle_rad)), int(y + step * -np.cos(angle_rad)))
+    def advance_vehicle(self, viable_loc_function, move_integration):
+        new_loc = move_integration.move(self.loc)
 
         if viable_loc_function(new_loc):
             self.loc = new_loc
+        else:
+            # Move heading
+            self.loc = (self.loc[0], self.loc[1], new_loc[2])
         return self.loc
 
     def draw_car(self, display):
-        x, y = self.loc
-        car_img_rotated = pygame.transform.rotate(self.car_img, self.car_direction.value)
+        x, y, heading = self.loc
+        car_img_rotated = pygame.transform.rotate(self.car_img, int(heading*180/np.pi))
         display.blit(car_img_rotated, (round(x-TILE_WIDTH/2),round(y-TILE_HEIGHT/2)))
 
 def convert_index_to_location(index):
@@ -225,8 +244,10 @@ class ParticleFilter:
         while not viable_particle:
             loc_x = int(np.floor(np.random.rand() * (max_locations[0] - min_locations[0]) + min_locations[0]))
             loc_y = int(np.floor(np.random.rand() * (max_locations[1] - min_locations[1]) + min_locations[1]))
-            viable_particle = viable_particle_func((loc_x, loc_y))
-        return (loc_x, loc_y)
+            # Add heading
+            heading = Direction.NORTH.value
+            viable_particle = viable_particle_func((loc_x, loc_y, heading))
+        return (loc_x, loc_y, heading)
 
     def update(self, data):
         # TODO: extend the likelihood function to be vectorized)
@@ -239,35 +260,36 @@ class ParticleFilter:
         indices = np.random.choice(self.n_particles, size=self.n_particles, p=likelihoods)
         self.particles = self.particles[indices]
 
-    def move_particles(self, move_vector):
+    def move_particles(self, move_integration):
         moved_particles = list()
         def move_particle(particle):
-            delta_x = int(np.round(self.move_noise.add_noise(move_vector[0])))
-            delta_y = int(np.round(self.move_noise.add_noise(move_vector[1])))
-            new_loc_x = particle[0] + delta_x
-            new_loc_y = particle[1] + delta_y
+            new_loc_x, new_loc_y, heading = move_integration.move(particle, self.move_noise)
             in_range = new_loc_x >= self.min_locations[0] and new_loc_y >= self.min_locations[1] and new_loc_x < self.max_locations[0] and new_loc_y < self.max_locations[1]
-            viable_particle = (in_range and self.viable_particle_func((new_loc_x, new_loc_y)))
+            viable_particle = (in_range and self.viable_particle_func((new_loc_x, new_loc_y, heading)))
             if viable_particle:
                 particle[0] = new_loc_x
                 particle[1] = new_loc_y
+            particle[2] = heading
             return particle
         
         self.particles = np.apply_along_axis(move_particle, 1, self.particles)
 
     def get_average_location(self):
-        average_x = sum([x for x,y in self.particles])/self.n_particles
-        average_y = sum([y for x,y in self.particles])/self.n_particles
-        return (average_x, average_y)
+        average_x = sum([x for x,y,h in self.particles])/self.n_particles
+        average_y = sum([y for x,y,h in self.particles])/self.n_particles
+        average_h = np.arctan2(sum([np.sin(h) for x,y,h in self.particles])/self.n_particles, sum([np.cos(h) for x,y,h in self.particles])/self.n_particles)
+        return (average_x, average_y, average_h)
 
 
 def draw_particle_filter(particle_filter, screen):
+    def to_pygame_coord(particle):
+        return (int(particle[0]), int(particle[1]))
     for particle in particle_filter.particles:
-        pygame.draw.circle(screen, red, (particle[0], particle[1]), 2)
+        pygame.draw.circle(screen, red, to_pygame_coord(particle), 2)
     for particle in particle_filter.top_10:
-        pygame.draw.circle(screen, blue, (particle[0], particle[1]), 2)
+        pygame.draw.circle(screen, blue, to_pygame_coord(particle), 2)
 
-vehicle = Vehicle((TILE_WIDTH, TILE_HEIGHT))
+vehicle = Vehicle((TILE_WIDTH, TILE_HEIGHT, Direction.NORTH.value))
 corridor = Corridor()
 # Ceiling map is 480 wide x 480 high
 ceiling = get_image(480, 480)
@@ -275,7 +297,7 @@ tilemap = TileMap(ceiling)
 desc = DescriptorComparison(300, ceiling)
 particle_filter = ParticleFilter(
                       n_particles=100, 
-                      particle_range=[(0, 0), (display_width, display_height)], 
+                      particle_range=[(0, 0), (display_width/2, display_height/2)], 
                       likelihood_func=lambda particle, datum: desc.likelihood(tilemap, particle, datum), 
                       viable_particle_func=corridor.viable_locations
                   )
@@ -287,6 +309,8 @@ particle_filter = ParticleFilter(
 font = pygame.font.Font('freesansbold.ttf', 24)
 ceiling_tile=tilemap.make_tile(vehicle.loc[0], vehicle.loc[1])
 move_dist=0
+dX=0
+dTheta=0
 while not crashed:
     for event in pygame.event.get():
         if event.type == pygame.QUIT:
@@ -296,25 +320,21 @@ while not crashed:
         '''
         if event.type == pygame.KEYDOWN:
             if event.key == pygame.K_w:
-                vehicle.car_direction = Direction.NORTH
+                dX = 10         
             elif event.key == pygame.K_s:
-                vehicle.car_direction = Direction.SOUTH
+                dX = 0
             elif event.key == pygame.K_a:
-                vehicle.car_direction = Direction.WEST
+                dTheta = 10
             elif event.key == pygame.K_d:
-                vehicle.car_direction = Direction.EAST
-            elif event.key == pygame.K_UP:
-                move_dist = 10 - move_dist
+                dTheta = -10
 
     '''
       Update continuously
     '''
-    # TODO: change this to be sensor input, rather than raw location
+    move_integration = MoveVector(dX, dTheta * np.pi / 180)
     particle_filter.update(ceiling_tile.image)
-    vehicle.advance_vehicle(corridor.viable_locations, move_dist)
-    # Convert car direction to radians angle
-    angle_rad = vehicle.car_direction.value * np.pi / 180
-    particle_filter.move_particles((move_dist * -np.sin(angle_rad), move_dist * -np.cos(angle_rad)))
+    vehicle.advance_vehicle(corridor.viable_locations, move_integration)
+    particle_filter.move_particles(move_integration)
     '''
     '''
     gameDisplay.fill(white)
@@ -333,7 +353,7 @@ while not crashed:
         if x_top+TILE_WIDTH >= display_width:
             x_top = 480
             y_top += TILE_HEIGHT
-        gameDisplay.blit(tilemap.make_tile(particle[0], particle[1]).draw_tile(), (x_top, y_top))
+        gameDisplay.blit(tilemap.make_tile(int(particle[0]), int(particle[1])).draw_tile(), (x_top, y_top))
         x_top += TILE_WIDTH
 
     walls_definitions = font.render('Wall distances (N, W, S, E):', True, green, white)
