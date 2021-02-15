@@ -30,8 +30,10 @@ class MoveVector():
         delta_x = self.dX * -np.sin(particle[2])
         delta_y = self.dX * -np.cos(particle[2])
         if noise is not None:
-            delta_x = np.round(noise.add_noise(delta_x))
-            delta_y = np.round(noise.add_noise(delta_y))
+            delta_x = noise.add_noise(delta_x)
+            delta_y = noise.add_noise(delta_y)
+        delta_x = np.round(delta_x)
+        delta_y = np.round(delta_y)
         new_loc_x = particle[0] + delta_x
         new_loc_y = particle[1] + delta_y
         heading = particle[2] + self.dTheta
@@ -245,7 +247,7 @@ class ParticleFilter:
             loc_x = int(np.floor(np.random.rand() * (max_locations[0] - min_locations[0]) + min_locations[0]))
             loc_y = int(np.floor(np.random.rand() * (max_locations[1] - min_locations[1]) + min_locations[1]))
             # Add heading
-            heading = Direction.NORTH.value
+            heading = 0.
             viable_particle = viable_particle_func((loc_x, loc_y, heading))
         return (loc_x, loc_y, heading)
 
@@ -264,8 +266,7 @@ class ParticleFilter:
         moved_particles = list()
         def move_particle(particle):
             new_loc_x, new_loc_y, heading = move_integration.move(particle, self.move_noise)
-            in_range = new_loc_x >= self.min_locations[0] and new_loc_y >= self.min_locations[1] and new_loc_x < self.max_locations[0] and new_loc_y < self.max_locations[1]
-            viable_particle = (in_range and self.viable_particle_func((new_loc_x, new_loc_y, heading)))
+            viable_particle = (self.viable_particle_func((new_loc_x, new_loc_y, heading)))
             if viable_particle:
                 particle[0] = new_loc_x
                 particle[1] = new_loc_y
