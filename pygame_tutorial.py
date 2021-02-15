@@ -328,6 +328,15 @@ while not crashed:
                 dTheta = 10
             elif event.key == pygame.K_d:
                 dTheta = -10
+        elif event.type == pygame.KEYUP:
+            if event.key == pygame.K_w:
+                dX = 0         
+            elif event.key == pygame.K_s:
+                dX = 0
+            elif event.key == pygame.K_a:
+                dTheta = 0
+            elif event.key == pygame.K_d:
+                dTheta = 0    
 
     '''
       Update continuously
