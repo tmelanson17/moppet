@@ -1,6 +1,8 @@
 # moppet
 A robot that uses ceiling tiles to navigate a room. 
 
+Youtube Video demonstrating the code: https://youtu.be/JS_mKLHqY1s
+
 ## Description
 - The `pygame_tutorial.py` file creates a sim environment which visualizes the vehicle in the environment, the particle filter, as well as basic statistics on "sensor" measurements and expected location.
 - `process_image.py` converts the image into a tile map, and does the SURF output comparison used to determine likelihood in the particle filter
